@@ -100,13 +100,6 @@ The system supports **three user roles** (Admin, Doctor, Receptionist), **four l
 - Recently registered patients
 - Pending unpaid bills
 
-### 🌍 Multi-Language Support
-- 🇺🇸 English
-- 🇫🇷 French (Français)
-- 🇰🇪 Swahili (Kiswahili)
-- 🇷🇼 Kinyarwanda
-- Language preference saved and persists across all pages
-
 ### 🌙 Dark / Light Mode
 - Full dark mode support across all pages
 - Preference saved in localStorage
