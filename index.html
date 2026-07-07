@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediCore HMS – Login</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- Floating theme toggle for login page -->
+  <button class="login-theme-btn" id="login-theme-btn" title="Toggle Dark/Light Mode">🌙</button>
+
+  <div class="login-page">
+    <!-- Hero Side -->
+    <div class="login-hero">
+      <div class="hero-logo">🏥</div>
+      <h1 class="hero-title">MediCore<br><span>Hospital</span><br>Management</h1>
+      <p class="hero-subtitle">A complete, modern platform for managing patients, doctors, appointments, and billing in one place.</p>
+      <div class="hero-features">
+        <div class="hero-feature"><div class="hero-feature-dot"></div>Patient Registration & Records</div>
+        <div class="hero-feature"><div class="hero-feature-dot"></div>Appointment Scheduling</div>
+        <div class="hero-feature"><div class="hero-feature-dot"></div>Doctor & Staff Management</div>
+        <div class="hero-feature"><div class="hero-feature-dot"></div>Billing & Payment Tracking</div>
+        <div class="hero-feature"><div class="hero-feature-dot"></div>Medical History & Treatments</div>
+      </div>
+    </div>
+
+    <!-- Form Side -->
+    <div class="login-form-side">
+      <div class="login-form-card">
+        <h2>Welcome back</h2>
+        <p class="subtitle">Sign in to your account to continue.</p>
+
+        <div id="login-error" style="display:none;background:#fee2e2;color:#991b1b;padding:.85rem 1rem;border-radius:8px;margin-bottom:1.25rem;font-size:.88rem;"></div>
+
+        <div class="form-group">
+          <label>Email Address</label>
+          <input id="email" type="email" class="form-control" placeholder="you@hospital.com" autocomplete="email" />
+        </div>
+
+        <div class="form-group">
+          <label>Password</label>
+          <input id="password" type="password" class="form-control" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+
+        <div class="form-group" style="margin-bottom:1.75rem;">
+          <label>Login As</label>
+          <select id="role" class="form-control">
+            <option value="">— Select Role —</option>
+            <option value="admin">Admin</option>
+            <option value="doctor">Doctor</option>
+            <option value="receptionist">Receptionist</option>
+          </select>
+        </div>
+
+        <button id="login-btn" class="btn btn-primary btn-full" style="padding:.9rem;">Sign In</button>
+
+        <p style="text-align:center;margin-top:1.5rem;font-size:.82rem;color:var(--text-muted);">
+          MediCore Hospital Management System v1.0
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/utils.js"></script>
+
+  <script>
+    // ── Theme toggle on login page ─────────────────
+    (function() {
+      var saved = localStorage.getItem('hms-theme') || 'light';
+      document.documentElement.setAttribute('data-theme', saved);
+      var btn = document.getElementById('login-theme-btn');
+      if (btn) btn.textContent = saved === 'dark' ? '☀️' : '🌙';
+    })();
+
+    document.getElementById('login-theme-btn').addEventListener('click', function() {
+      var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      var newTheme = isDark ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('hms-theme', newTheme);
+      this.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+    });
+
+    // ── Redirect if already logged in ─────────────
+    auth.onAuthStateChanged(async user => {
+      if (user) {
+        const doc = await db.collection('users').doc(user.uid).get();
+        if (doc.exists) redirectByRole(doc.data().role);
+      }
+    });
+
+    function redirectByRole(role) {
+      const map = {
+        admin: 'pages/dashboard.html',
+        doctor: 'pages/appointments.html',
+        receptionist: 'pages/patients.html'
+      };
+      window.location.href = map[role] || 'pages/dashboard.html';
+    }
+
+    // ── Login ──────────────────────────────────────
+    document.getElementById('login-btn').addEventListener('click', async () => {
+      const email    = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const role     = document.getElementById('role').value;
+      const errBox   = document.getElementById('login-error');
+      const btn      = document.getElementById('login-btn');
+
+      errBox.style.display = 'none';
+      if (!email || !password || !role) {
+        errBox.textContent = 'Please fill in all fields.';
+        errBox.style.display = 'block';
+        return;
+      }
+
+      Utils.setLoading(btn, true);
+      try {
+        const userData = await Auth.login(email, password);
+        if (userData.role !== role) {
+          await auth.signOut();
+          throw new Error('Selected role does not match your account.');
+        }
+        redirectByRole(userData.role);
+      } catch (e) {
+        errBox.textContent = e.message;
+        errBox.style.display = 'block';
+        Utils.setLoading(btn, false);
+      }
+    });
+
+    document.getElementById('password').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('login-btn').click();
+    });
+  </script>
+</body>
+</html>

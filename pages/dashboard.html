@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard – MediCore HMS</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .chart-card {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 1.25rem 1.5rem;
+    }
+    .chart-title {
+      font-size: .95rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .chart-container {
+      position: relative;
+      height: 240px;
+    }
+    @media (max-width: 768px) {
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    @media (max-width: 768px) {
+      .dashboard-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-loader" id="loader">
+    <div class="page-loader-inner">
+      <div class="loader-ring"></div>
+      <span style="color:var(--text-muted);font-size:.9rem;margin-top:.5rem;">Loading dashboard…</span>
+    </div>
+  </div>
+
+  <div class="app-shell">
+    <div class="main-content" id="main">
+
+      <div class="page-header">
+        <div class="page-header-title">
+          <h2>Dashboard</h2>
+          <p id="greeting">Good morning — here's your hospital overview.</p>
+        </div>
+        <div>
+          <span id="today-date" style="font-size:.9rem;color:var(--text-muted);"></span>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card"><div class="stat-icon teal">🧑‍⚕️</div><div><div class="stat-value" id="stat-patients">—</div><div class="stat-label">Total Patients</div></div></div>
+        <div class="stat-card"><div class="stat-icon blue">👨‍⚕️</div><div><div class="stat-value" id="stat-doctors">—</div><div class="stat-label">Active Doctors</div></div></div>
+        <div class="stat-card"><div class="stat-icon amber">📅</div><div><div class="stat-value" id="stat-appts">—</div><div class="stat-label">Today's Appointments</div></div></div>
+        <div class="stat-card"><div class="stat-icon green">💳</div><div><div class="stat-value" id="stat-revenue">—</div><div class="stat-label">Total Revenue</div></div></div>
+        <div class="stat-card"><div class="stat-icon red">⚠️</div><div><div class="stat-value" id="stat-unpaid">—</div><div class="stat-label">Unpaid Bills</div></div></div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="charts-grid">
+
+        <!-- Bar Chart — Appointments this week -->
+        <div class="chart-card">
+          <div class="chart-title">📊 Appointments This Week</div>
+          <div class="chart-container">
+            <canvas id="chart-appointments"></canvas>
+          </div>
+        </div>
+
+        <!-- Pie Chart — Appointment Status -->
+        <div class="chart-card">
+          <div class="chart-title">🥧 Appointment Status Breakdown</div>
+          <div class="chart-container">
+            <canvas id="chart-status"></canvas>
+          </div>
+        </div>
+
+        <!-- Bar Chart — Monthly Revenue -->
+        <div class="chart-card">
+          <div class="chart-title">💰 Revenue – Last 6 Months</div>
+          <div class="chart-container">
+            <canvas id="chart-revenue"></canvas>
+          </div>
+        </div>
+
+        <!-- Pie Chart — Bill Payment Status -->
+        <div class="chart-card">
+          <div class="chart-title">💳 Billing Status Overview</div>
+          <div class="chart-container">
+            <canvas id="chart-billing"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Tables Row -->
+      <div class="dashboard-grid">
+
+        <!-- Today's Appointments -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">📅 Today's Appointments</span>
+            <a href="appointments.html" class="btn btn-secondary btn-sm">View All</a>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Patient</th><th>Doctor</th><th>Time</th><th>Status</th></tr></thead>
+              <tbody id="today-appts-table"><tr><td colspan="4" class="empty-state"><div class="empty-icon">📅</div><p>Loading…</p></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Recent Patients -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🧑‍⚕️ Recently Registered Patients</span>
+            <a href="patients.html" class="btn btn-secondary btn-sm">View All</a>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Name</th><th>ID</th><th>Date</th><th>Status</th></tr></thead>
+              <tbody id="recent-patients-table"><tr><td colspan="4" class="empty-state"><div class="empty-icon">🧑‍⚕️</div><p>Loading…</p></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Unpaid Bills -->
+      <div class="card section">
+        <div class="card-header">
+          <span class="card-title">💳 Pending / Unpaid Bills</span>
+          <a href="billing.html" class="btn btn-secondary btn-sm">View All</a>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Bill ID</th><th>Patient</th><th>Amount</th><th>Date</th><th>Status</th></tr></thead>
+            <tbody id="unpaid-bills-table"><tr><td colspan="5" class="empty-state"><div class="empty-icon">💳</div><p>Loading…</p></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="../js/firebase-config.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/layout.js"></script>
+
+  <script>
+    var currentUser;
+    var chartAppts    = null;
+    var chartStatus   = null;
+    var chartRevenue  = null;
+    var chartBilling  = null;
+
+    // ── Color palette ──────────────────────────────
+    var COLORS = {
+      teal:    '#14b8a6',
+      tealDark:'#0d9488',
+      blue:    '#3b82f6',
+      green:   '#22c55e',
+      amber:   '#f59e0b',
+      red:     '#ef4444',
+      orange:  '#f97316',
+      purple:  '#a855f7',
+      gray:    '#94a3b8',
+      tealBg:  'rgba(20,184,166,.15)',
+      blueBg:  'rgba(59,130,246,.15)',
+      greenBg: 'rgba(34,197,94,.15)',
+      amberBg: 'rgba(245,158,11,.15)',
+      redBg:   'rgba(239,68,68,.15)',
+    };
+
+    // ── Chart defaults ─────────────────────────────
+    Chart.defaults.font.family = "'DM Sans', sans-serif";
+    Chart.defaults.font.size   = 12;
+    Chart.defaults.color       = '#64748b';
+    Chart.defaults.plugins.legend.labels.usePointStyle = true;
+    Chart.defaults.plugins.legend.labels.padding = 16;
+
+    // ── Init ───────────────────────────────────────
+    async function init() {
+      currentUser = await Auth.requireAuth(['admin']);
+      Layout.render(currentUser);
+      Layout.setTitle('Dashboard');
+
+      var hour  = new Date().getHours();
+      var greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+      document.getElementById('greeting').textContent = greet + ', ' + currentUser.name + ' — here\'s your hospital overview.';
+      document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+      await Promise.all([
+        loadStats(),
+        loadTodayAppointments(),
+        loadRecentPatients(),
+        loadUnpaidBills(),
+        loadAppointmentsChart(),
+        loadStatusChart(),
+        loadRevenueChart(),
+        loadBillingChart()
+      ]);
+
+      document.getElementById('loader').classList.add('hidden');
+    }
+
+    // ── Stats ──────────────────────────────────────
+    async function loadStats() {
+      var pSnap = await db.collection('patients').get();
+      var dSnap = await db.collection('users').where('role','==','doctor').get();
+      var bSnap = await db.collection('bills').get();
+      var aSnap = await db.collection('appointments').where('date','==',Utils.today()).get();
+
+      document.getElementById('stat-patients').textContent = pSnap.size;
+      document.getElementById('stat-doctors').textContent  = dSnap.size;
+      document.getElementById('stat-appts').textContent    = aSnap.size;
+
+      var revenue = 0, unpaid = 0;
+      bSnap.forEach(function(d){
+        var b = d.data();
+        if (b.status === 'paid') revenue += (b.amountPaid || 0);
+        if (b.status === 'unpaid' || b.status === 'partial') unpaid++;
+      });
+      document.getElementById('stat-revenue').textContent = Utils.currency(revenue);
+      document.getElementById('stat-unpaid').textContent  = unpaid;
+    }
+
+    // ── Chart 1: Bar — Appointments this week ──────
+    async function loadAppointmentsChart() {
+      var days   = [];
+      var labels = [];
+      var counts = [];
+
+      for (var i = 6; i >= 0; i--) {
+        var d = new Date();
+        d.setDate(d.getDate() - i);
+        var dateStr = d.toISOString().split('T')[0];
+        var label   = d.toLocaleDateString('en-US',{ weekday:'short', month:'short', day:'numeric' });
+        days.push(dateStr);
+        labels.push(label);
+      }
+
+      var snap = await db.collection('appointments').get();
+      var countMap = {};
+      days.forEach(function(d){ countMap[d] = 0; });
+      snap.forEach(function(doc){
+        var date = doc.data().date;
+        if (countMap[date] !== undefined) countMap[date]++;
+      });
+      days.forEach(function(d){ counts.push(countMap[d]); });
+
+      var ctx = document.getElementById('chart-appointments').getContext('2d');
+      if (chartAppts) chartAppts.destroy();
+      chartAppts = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Appointments',
+            data: counts,
+            backgroundColor: counts.map(function(_,i){
+              return i === 6 ? COLORS.teal : COLORS.tealBg;
+            }),
+            borderColor: COLORS.tealDark,
+            borderWidth: 1.5,
+            borderRadius: 8,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(ctx){ return ' ' + ctx.parsed.y + ' appointment' + (ctx.parsed.y !== 1 ? 's' : ''); }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { stepSize: 1, precision: 0 },
+              grid: { color: 'rgba(0,0,0,.05)' }
+            },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // ── Chart 2: Doughnut — Appointment Status ─────
+    async function loadStatusChart() {
+      var snap = await db.collection('appointments').get();
+      var counts = { scheduled: 0, completed: 0, cancelled: 0, 'no-show': 0 };
+      snap.forEach(function(doc){
+        var s = doc.data().status;
+        if (counts[s] !== undefined) counts[s]++;
+      });
+
+      var total = Object.values(counts).reduce(function(a,b){ return a+b; }, 0);
+      if (total === 0) {
+        counts = { scheduled: 1, completed: 0, cancelled: 0, 'no-show': 0 };
+      }
+
+      var ctx = document.getElementById('chart-status').getContext('2d');
+      if (chartStatus) chartStatus.destroy();
+      chartStatus = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Scheduled', 'Completed', 'Cancelled', 'No-show'],
+          datasets: [{
+            data: [counts.scheduled, counts.completed, counts.cancelled, counts['no-show']],
+            backgroundColor: [COLORS.blue, COLORS.green, COLORS.red, COLORS.amber],
+            borderColor: '#ffffff',
+            borderWidth: 3,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '65%',
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { padding: 12, font: { size: 11 } }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(ctx){
+                  var val = ctx.parsed;
+                  var tot = ctx.dataset.data.reduce(function(a,b){ return a+b; },0);
+                  var pct = tot > 0 ? Math.round(val/tot*100) : 0;
+                  return ' ' + ctx.label + ': ' + val + ' (' + pct + '%)';
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // ── Chart 3: Bar — Monthly Revenue ────────────
+    async function loadRevenueChart() {
+      var months  = [];
+      var labels  = [];
+      var revenue = [];
+
+      for (var i = 5; i >= 0; i--) {
+        var d = new Date();
+        d.setDate(1);
+        d.setMonth(d.getMonth() - i);
+        var key   = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+        var label = d.toLocaleDateString('en-US',{ month:'short', year:'2-digit' });
+        months.push(key);
+        labels.push(label);
+        revenue.push(0);
+      }
+
+      var snap = await db.collection('bills').where('status','==','paid').get();
+      snap.forEach(function(doc){
+        var b    = doc.data();
+        var date = b.billDate || '';
+        if (!date && b.createdAt) {
+          var d = b.createdAt.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+          date  = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-01';
+        }
+        var monthKey = date.slice(0,7);
+        var idx = months.indexOf(monthKey);
+        if (idx !== -1) revenue[idx] += (b.amountPaid || 0);
+      });
+
+      var ctx = document.getElementById('chart-revenue').getContext('2d');
+      if (chartRevenue) chartRevenue.destroy();
+      chartRevenue = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Revenue ($)',
+            data: revenue,
+            backgroundColor: revenue.map(function(_,i){
+              return i === revenue.length-1 ? COLORS.green : COLORS.greenBg;
+            }),
+            borderColor: '#16a34a',
+            borderWidth: 1.5,
+            borderRadius: 8,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(ctx){ return ' ' + Utils.currency(ctx.parsed.y); }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(v){ return '$' + (v >= 1000 ? (v/1000).toFixed(1)+'k' : v); }
+              },
+              grid: { color: 'rgba(0,0,0,.05)' }
+            },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // ── Chart 4: Pie — Billing Status ─────────────
+    async function loadBillingChart() {
+      var snap = await db.collection('bills').get();
+      var counts = { paid: 0, unpaid: 0, partial: 0 };
+      var amounts = { paid: 0, unpaid: 0, partial: 0 };
+
+      snap.forEach(function(doc){
+        var b = doc.data();
+        var s = b.status || 'unpaid';
+        if (counts[s] !== undefined) {
+          counts[s]++;
+          amounts[s] += (b.totalAmount || 0);
+        }
+      });
+
+      var total = counts.paid + counts.unpaid + counts.partial;
+      if (total === 0) { counts = { paid: 1, unpaid: 0, partial: 0 }; }
+
+      var ctx = document.getElementById('chart-billing').getContext('2d');
+      if (chartBilling) chartBilling.destroy();
+      chartBilling = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: ['Paid', 'Unpaid', 'Partial'],
+          datasets: [{
+            data: [counts.paid, counts.unpaid, counts.partial],
+            backgroundColor: [COLORS.green, COLORS.red, COLORS.amber],
+            borderColor: '#ffffff',
+            borderWidth: 3,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { padding: 12, font: { size: 11 } }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(ctx){
+                  var label = ctx.label;
+                  var val   = ctx.parsed;
+                  var tot   = ctx.dataset.data.reduce(function(a,b){ return a+b; },0);
+                  var pct   = tot > 0 ? Math.round(val/tot*100) : 0;
+                  var key   = label.toLowerCase();
+                  return ' ' + label + ': ' + val + ' bills (' + pct + '%) — ' + Utils.currency(amounts[key]||0);
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // ── Table: Today's Appointments ────────────────
+    async function loadTodayAppointments() {
+      var snap = await db.collection('appointments')
+        .where('date','==',Utils.today())
+        .orderBy('time')
+        .limit(8)
+        .get();
+      var tbody = document.getElementById('today-appts-table');
+      if (snap.empty) { tbody.innerHTML = Utils.emptyState('No appointments today.'); return; }
+      tbody.innerHTML = snap.docs.map(function(d){
+        var a = d.data();
+        return '<tr>'
+          +'<td>'+(a.patientName||'—')+'</td>'
+          +'<td>'+(a.doctorName||'—')+'</td>'
+          +'<td class="mono text-sm">'+(a.time||'—')+'</td>'
+          +'<td>'+Utils.statusBadge(a.status)+'</td>'
+          +'</tr>';
+      }).join('');
+    }
+
+    // ── Table: Recent Patients ─────────────────────
+    async function loadRecentPatients() {
+      var snap = await db.collection('patients')
+        .orderBy('createdAt','desc')
+        .limit(8)
+        .get();
+      var tbody = document.getElementById('recent-patients-table');
+      if (snap.empty) { tbody.innerHTML = Utils.emptyState('No patients registered yet.'); return; }
+      tbody.innerHTML = snap.docs.map(function(d){
+        var p = d.data();
+        return '<tr>'
+          +'<td><strong>'+(p.name||'—')+'</strong></td>'
+          +'<td class="mono text-xs">'+(p.patientId||d.id.slice(0,8))+'</td>'
+          +'<td class="text-sm">'+Utils.formatDate(p.createdAt)+'</td>'
+          +'<td>'+Utils.statusBadge(p.status||'active')+'</td>'
+          +'</tr>';
+      }).join('');
+    }
+
+    // ── Table: Unpaid Bills ────────────────────────
+    async function loadUnpaidBills() {
+      var snap = await db.collection('bills')
+        .where('status','in',['unpaid','partial'])
+        .orderBy('createdAt','desc')
+        .limit(8)
+        .get();
+      var tbody = document.getElementById('unpaid-bills-table');
+      if (snap.empty) { tbody.innerHTML = Utils.emptyState('No pending bills. 🎉'); return; }
+      tbody.innerHTML = snap.docs.map(function(d){
+        var b = d.data();
+        return '<tr>'
+          +'<td class="mono text-xs">'+(b.billId||d.id.slice(0,8))+'</td>'
+          +'<td>'+(b.patientName||'—')+'</td>'
+          +'<td><strong>'+Utils.currency(b.amount||b.totalAmount)+'</strong></td>'
+          +'<td class="text-sm">'+Utils.formatDate(b.createdAt)+'</td>'
+          +'<td>'+Utils.statusBadge(b.status)+'</td>'
+          +'</tr>';
+      }).join('');
+    }
+
+    init();
+  </script>
+</body>
+</html>

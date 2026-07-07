@@ -1,0 +1,70 @@
+// ============================================================
+// firestore.rules
+// Deploy with: firebase deploy --only firestore:rules
+// ============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: check if the requesting user is authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper: get the role of the currently logged-in user
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin()        { return isAuth() && getRole() == 'admin'; }
+    function isDoctor()       { return isAuth() && getRole() == 'doctor'; }
+    function isReceptionist() { return isAuth() && getRole() == 'receptionist'; }
+    function isStaff()        { return isAdmin() || isDoctor() || isReceptionist(); }
+
+    // ── Users collection ────────────────────────────────────
+    match /users/{userId} {
+      // Any authenticated user can read their own profile
+      allow read: if isAuth() && (request.auth.uid == userId || isAdmin());
+      // Admins can read all users
+      allow list: if isAdmin();
+      // Only admins can create/update/delete users
+      allow write: if isAdmin();
+      // Allow self-update of basic profile fields (not role)
+      allow update: if isAuth() && request.auth.uid == userId
+                    && !('role' in request.resource.data.diff(resource.data).affectedKeys());
+    }
+
+    // ── Patients ────────────────────────────────────────────
+    match /patients/{patientId} {
+      allow read:   if isStaff();
+      allow create: if isAdmin() || isReceptionist();
+      allow update: if isAdmin() || isReceptionist() || isDoctor();
+      allow delete: if isAdmin();
+    }
+
+    // ── Appointments ────────────────────────────────────────
+    match /appointments/{apptId} {
+      allow read:   if isStaff();
+      allow create: if isAdmin() || isReceptionist() || isDoctor();
+      allow update: if isAdmin() || isReceptionist() || isDoctor();
+      allow delete: if isAdmin();
+    }
+
+    // ── Treatments / Medical History ────────────────────────
+    match /treatments/{treatmentId} {
+      allow read:   if isStaff();
+      allow create: if isAdmin() || isDoctor();
+      allow update: if isAdmin() || isDoctor();
+      allow delete: if isAdmin();
+    }
+
+    // ── Billing ─────────────────────────────────────────────
+    match /bills/{billId} {
+      allow read:   if isStaff();
+      allow create: if isAdmin() || isReceptionist();
+      allow update: if isAdmin() || isReceptionist();
+      allow delete: if isAdmin();
+    }
+  }
+}

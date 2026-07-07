@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Appointments – MediCore HMS</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    #appt-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,.55);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    #appt-modal.open { display: flex; }
+    .modal { animation: modalIn .22s ease; }
+    @keyframes modalIn {
+      from { opacity:0; transform: scale(.95) translateY(12px); }
+      to   { opacity:1; transform: scale(1) translateY(0); }
+    }
+    .btn:active:not(:disabled) { transform: scale(.97); }
+    @media (max-width: 900px) { .hide-sm { display: none !important; } }
+    @media (max-width: 600px) { .form-row { grid-template-columns: 1fr !important; } }
+  </style>
+</head>
+<body>
+  <div class="page-loader" id="loader">
+    <div class="page-loader-inner"><div class="loader-ring"></div></div>
+  </div>
+
+  <div class="app-shell">
+    <div class="main-content" id="main">
+
+      <div class="page-header">
+        <div class="page-header-title">
+          <h2>Appointments</h2>
+          <p>Schedule, manage, and track all patient appointments.</p>
+        </div>
+        <button class="btn btn-primary" id="add-btn">＋ Book Appointment</button>
+      </div>
+
+      <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:1.5rem;">
+        <div class="stat-card"><div class="stat-icon blue">📅</div><div><div class="stat-value" id="s-today">—</div><div class="stat-label">Today</div></div></div>
+        <div class="stat-card"><div class="stat-icon teal">📋</div><div><div class="stat-value" id="s-scheduled">—</div><div class="stat-label">Scheduled</div></div></div>
+        <div class="stat-card"><div class="stat-icon green">✅</div><div><div class="stat-value" id="s-completed">—</div><div class="stat-label">Completed</div></div></div>
+        <div class="stat-card"><div class="stat-icon red">✕</div><div><div class="stat-value" id="s-cancelled">—</div><div class="stat-label">Cancelled</div></div></div>
+        <div class="stat-card"><div class="stat-icon amber">⚠</div><div><div class="stat-value" id="s-noshow">—</div><div class="stat-label">No-show</div></div></div>
+      </div>
+
+      <div class="card section">
+        <div class="card-header">
+          <div class="search-bar" style="flex-wrap:wrap;gap:.6rem;">
+            <div class="search-input-wrap" style="flex:1;min-width:180px;">
+              <span class="search-icon">🔍</span>
+              <input id="search-input" class="search-input" placeholder="Search by patient, doctor…" />
+            </div>
+            <input id="filter-date" type="date" class="form-control" style="width:160px;" />
+            <select id="filter-status" class="form-control" style="width:160px;">
+              <option value="">All Statuses</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="no-show">No-show</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" id="clear-btn">Clear</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Patient</th>
+                <th>Doctor</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th class="hide-sm">Type</th>
+                <th class="hide-sm">Reason</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="appts-table">
+              <tr><td colspan="8" class="empty-state"><div class="empty-icon">📅</div><p>Loading…</p></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL -->
+  <div id="appt-modal">
+    <div class="modal" style="max-width:580px;width:100%;">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-title">Book Appointment</span>
+        <button class="modal-close" id="am-close" type="button">✕</button>
+      </div>
+      <div class="modal-body" style="max-height:68vh;overflow-y:auto;">
+        <input type="hidden" id="edit-id" />
+        <div class="form-group">
+          <label>Patient *</label>
+          <select id="a-patient" class="form-control">
+            <option value="">— Select Patient —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Doctor *</label>
+          <select id="a-doctor" class="form-control">
+            <option value="">— Select Doctor —</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date *</label>
+            <input id="a-date" type="date" class="form-control" />
+          </div>
+          <div class="form-group">
+            <label>Time *</label>
+            <input id="a-time" type="time" class="form-control" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Type</label>
+            <select id="a-type" class="form-control">
+              <option value="consultation">Consultation</option>
+              <option value="follow-up">Follow-up</option>
+              <option value="emergency">Emergency</option>
+              <option value="routine-checkup">Routine Checkup</option>
+              <option value="procedure">Procedure</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="a-status" class="form-control">
+              <option value="scheduled">Scheduled</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="no-show">No-show</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Reason / Chief Complaint</label>
+          <textarea id="a-reason" class="form-control" rows="2" placeholder="Brief description…"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="a-notes" class="form-control" rows="2" placeholder="Additional notes…"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="am-cancel" type="button">Cancel</button>
+        <button class="btn btn-primary" id="am-save" type="button">Save Appointment</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="../js/firebase-config.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/layout.js"></script>
+  <script>
+    var currentUser, allAppts = [], patients = [], doctors = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('add-btn').addEventListener('click', function(){ openModal(null); });
+      document.getElementById('am-save').addEventListener('click', saveAppointment);
+      document.getElementById('am-cancel').addEventListener('click', closeModal);
+      document.getElementById('am-close').addEventListener('click', closeModal);
+      document.getElementById('clear-btn').addEventListener('click', clearFilters);
+      document.getElementById('search-input').addEventListener('input', filterAppts);
+      document.getElementById('filter-date').addEventListener('change', filterAppts);
+      document.getElementById('filter-status').addEventListener('change', filterAppts);
+      document.getElementById('appt-modal').addEventListener('click', function(e){
+        if (e.target === this) closeModal();
+      });
+      document.addEventListener('keydown', function(e){
+        if (e.key === 'Escape') closeModal();
+      });
+    });
+
+    async function init() {
+      currentUser = await Auth.requireAuth(['admin','doctor','receptionist']);
+      Layout.render(currentUser);
+      Layout.setTitle('Appointments');
+      document.getElementById('filter-date').value = Utils.today();
+      await Promise.all([loadPatients(), loadDoctors()]);
+      loadAppointments();
+      document.getElementById('loader').classList.add('hidden');
+    }
+
+    async function loadPatients() {
+      var snap = await db.collection('patients').orderBy('name').get();
+      patients = snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); });
+      var sel = document.getElementById('a-patient');
+      sel.innerHTML = '<option value="">— Select Patient —</option>'
+        + patients.map(function(p){
+            return '<option value="'+p.id+'" data-name="'+(p.name||'').replace(/"/g,'')+'">'
+              +p.name+' ('+(p.patientId||p.id.slice(0,6))+')</option>';
+          }).join('');
+    }
+
+    async function loadDoctors() {
+      var snap = await db.collection('users').where('role','==','doctor').orderBy('name').get();
+      doctors = snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); });
+      var sel = document.getElementById('a-doctor');
+      sel.innerHTML = '<option value="">— Select Doctor —</option>'
+        + doctors.map(function(d){
+            return '<option value="'+d.id+'" data-name="'+(d.name||'').replace(/"/g,'')+'">'
+              +d.name+' – '+(d.specialization||'General')+'</option>';
+          }).join('');
+    }
+
+    function loadAppointments() {
+      var q = currentUser.role === 'doctor'
+        ? db.collection('appointments').where('doctorId','==',currentUser.uid).orderBy('date','desc')
+        : db.collection('appointments').orderBy('date','desc');
+      q.onSnapshot(function(snap){
+        allAppts = snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); });
+        updateStats();
+        filterAppts();
+      });
+    }
+
+    function updateStats() {
+      var today = Utils.today();
+      document.getElementById('s-today').textContent     = allAppts.filter(function(a){ return a.date===today; }).length;
+      document.getElementById('s-scheduled').textContent = allAppts.filter(function(a){ return a.status==='scheduled'; }).length;
+      document.getElementById('s-completed').textContent = allAppts.filter(function(a){ return a.status==='completed'; }).length;
+      document.getElementById('s-cancelled').textContent = allAppts.filter(function(a){ return a.status==='cancelled'; }).length;
+      document.getElementById('s-noshow').textContent    = allAppts.filter(function(a){ return a.status==='no-show'; }).length;
+    }
+
+    function filterAppts() {
+      var q      = document.getElementById('search-input').value.toLowerCase();
+      var date   = document.getElementById('filter-date').value;
+      var status = document.getElementById('filter-status').value;
+      var filtered = allAppts.filter(function(a){
+        var mq = !q || (a.patientName||'').toLowerCase().includes(q) || (a.doctorName||'').toLowerCase().includes(q);
+        var md = !date   || a.date === date;
+        var ms = !status || a.status === status;
+        return mq && md && ms;
+      });
+      renderTable(filtered);
+    }
+
+    function clearFilters() {
+      document.getElementById('search-input').value  = '';
+      document.getElementById('filter-date').value   = '';
+      document.getElementById('filter-status').value = '';
+      filterAppts();
+    }
+
+    function renderTable(appts) {
+      var tbody = document.getElementById('appts-table');
+      if (!appts.length) { tbody.innerHTML = Utils.emptyState('No appointments found.'); return; }
+      tbody.innerHTML = appts.map(function(a){
+        var safeId = (a.id||'').replace(/"/g,'');
+        return '<tr>'
+          +'<td><strong>'+(a.patientName||'—')+'</strong></td>'
+          +'<td>'+(a.doctorName||'—')+'</td>'
+          +'<td class="mono text-sm">'+(a.date||'—')+'</td>'
+          +'<td class="mono text-sm">'+(a.time||'—')+'</td>'
+          +'<td class="hide-sm">'+Utils.badge(a.type||'consultation','teal')+'</td>'
+          +'<td class="hide-sm text-sm" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(a.reason||'—')+'</td>'
+          +'<td>'+Utils.statusBadge(a.status||'scheduled')+'</td>'
+          +'<td><div class="table-actions">'
+          +'<button class="btn btn-sm btn-secondary" data-edit="'+safeId+'">✏️ Edit</button>'
+          +'<select class="form-control" style="width:120px;padding:.3rem .5rem;font-size:.78rem;" data-status="'+safeId+'">'
+          +'<option value="">Set Status</option>'
+          +'<option value="scheduled">Scheduled</option>'
+          +'<option value="completed">Completed</option>'
+          +'<option value="cancelled">Cancelled</option>'
+          +'<option value="no-show">No-show</option>'
+          +'</select>'
+          +(currentUser.role==='admin' ? '<button class="btn btn-sm btn-danger" data-del="'+safeId+'">🗑</button>' : '')
+          +'</div></td>'
+          +'</tr>';
+      }).join('');
+
+      tbody.querySelectorAll('[data-edit]').forEach(function(btn){
+        btn.addEventListener('click', function(){ editAppt(this.dataset.edit); });
+      });
+      tbody.querySelectorAll('[data-status]').forEach(function(sel){
+        sel.addEventListener('change', function(){
+          if (this.value) updateStatus(this.dataset.status, this.value);
+        });
+      });
+      tbody.querySelectorAll('[data-del]').forEach(function(btn){
+        btn.addEventListener('click', function(){ deleteAppt(this.dataset.del); });
+      });
+    }
+
+    function openModal(data) {
+      document.getElementById('modal-title').textContent = data ? 'Edit Appointment' : 'Book Appointment';
+      document.getElementById('edit-id').value    = data ? data.id : '';
+      document.getElementById('a-patient').value  = data ? (data.patientId||'') : '';
+      document.getElementById('a-doctor').value   = data ? (data.doctorId||'') : '';
+      document.getElementById('a-date').value     = data ? (data.date||Utils.today()) : Utils.today();
+      document.getElementById('a-time').value     = data ? (data.time||'09:00') : '09:00';
+      document.getElementById('a-type').value     = data ? (data.type||'consultation') : 'consultation';
+      document.getElementById('a-status').value   = data ? (data.status||'scheduled') : 'scheduled';
+      document.getElementById('a-reason').value   = data ? (data.reason||'') : '';
+      document.getElementById('a-notes').value    = data ? (data.notes||'') : '';
+      var btn = document.getElementById('am-save');
+      btn.disabled    = false;
+      btn.textContent = data ? 'Update Appointment' : 'Save Appointment';
+      document.getElementById('appt-modal').classList.add('open');
+      setTimeout(function(){ document.getElementById('a-patient').focus(); }, 150);
+    }
+
+    function closeModal() {
+      document.getElementById('appt-modal').classList.remove('open');
+    }
+
+    async function saveAppointment() {
+      var patientId = document.getElementById('a-patient').value;
+      var doctorId  = document.getElementById('a-doctor').value;
+      var date      = document.getElementById('a-date').value;
+      var time      = document.getElementById('a-time').value;
+      if (!patientId || !doctorId || !date || !time) {
+        Utils.toast('Patient, doctor, date and time are required.','error'); return;
+      }
+      var btn = document.getElementById('am-save');
+      btn.disabled  = true;
+      btn.innerHTML = '<span class="spinner"></span> Saving…';
+
+      var pOpt = document.querySelector('#a-patient option[value="'+patientId+'"]');
+      var dOpt = document.querySelector('#a-doctor option[value="'+doctorId+'"]');
+      var editId = document.getElementById('edit-id').value;
+      var payload = {
+        patientId: patientId,
+        doctorId:  doctorId,
+        patientName: pOpt ? pOpt.dataset.name : '',
+        doctorName:  dOpt ? dOpt.dataset.name : '',
+        date: date, time: time,
+        type:   document.getElementById('a-type').value,
+        status: document.getElementById('a-status').value,
+        reason: document.getElementById('a-reason').value.trim(),
+        notes:  document.getElementById('a-notes').value.trim(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      try {
+        if (editId) {
+          await db.collection('appointments').doc(editId).update(payload);
+          Utils.toast('Appointment updated.','success');
+        } else {
+          payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+          await db.collection('appointments').add(payload);
+          Utils.toast('Appointment booked.','success');
+        }
+        closeModal();
+      } catch(err) {
+        Utils.toast('Error: '+err.message,'error');
+        btn.disabled    = false;
+        btn.textContent = editId ? 'Update Appointment' : 'Save Appointment';
+      }
+    }
+
+    async function updateStatus(id, status) {
+      try {
+        await db.collection('appointments').doc(id).update({ status: status, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        Utils.toast('Status updated to "'+status+'".','success');
+      } catch(err) { Utils.toast('Error: '+err.message,'error'); }
+    }
+
+    function editAppt(id) {
+      var a = allAppts.find(function(x){ return x.id===id; });
+      if (a) openModal(a);
+    }
+
+    async function deleteAppt(id) {
+      if (!confirm('Delete this appointment?')) return;
+      try {
+        await db.collection('appointments').doc(id).delete();
+        Utils.toast('Appointment deleted.','info');
+      } catch(err) { Utils.toast('Error: '+err.message,'error'); }
+    }
+
+    init();
+  </script>
+</body>
+</html>

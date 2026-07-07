@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Doctors – MediCore HMS</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .day-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      padding: .38rem .8rem;
+      border-radius: 20px;
+      border: 1.5px solid var(--border);
+      background: var(--surface-2);
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+      user-select: none;
+    }
+    .day-pill input[type=checkbox] { display: none; }
+    .day-pill:hover { border-color: var(--teal-400); background: var(--teal-50); color: var(--teal-700); }
+    .day-pill.checked { background: var(--teal-600); color: #fff; border-color: var(--teal-600); }
+    #doctor-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,.55);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    #doctor-modal.open { display: flex; }
+    .modal { animation: modalIn .22s ease; }
+    @keyframes modalIn {
+      from { opacity:0; transform: scale(.95) translateY(12px); }
+      to   { opacity:1; transform: scale(1) translateY(0); }
+    }
+    .btn:active:not(:disabled) { transform: scale(.97); }
+    @media (max-width: 900px) {
+      .hide-sm { display: none !important; }
+      .stats-grid { grid-template-columns: repeat(2,1fr) !important; }
+    }
+    @media (max-width: 600px) {
+      .form-row { grid-template-columns: 1fr !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-loader" id="loader">
+    <div class="page-loader-inner"><div class="loader-ring"></div></div>
+  </div>
+
+  <div class="app-shell">
+    <div class="main-content" id="main">
+
+      <div class="page-header">
+        <div class="page-header-title">
+          <h2>Doctor Management</h2>
+          <p>Manage hospital medical staff and their specializations.</p>
+        </div>
+        <button class="btn btn-primary" id="add-btn" style="display:none;">＋ Add Doctor</button>
+      </div>
+
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1.5rem;">
+        <div class="stat-card"><div class="stat-icon blue">👨‍⚕️</div><div><div class="stat-value" id="s-total">—</div><div class="stat-label">Total Doctors</div></div></div>
+        <div class="stat-card"><div class="stat-icon green">✅</div><div><div class="stat-value" id="s-active">—</div><div class="stat-label">Active</div></div></div>
+        <div class="stat-card"><div class="stat-icon amber">📅</div><div><div class="stat-value" id="s-appts">—</div><div class="stat-label">Appts Today</div></div></div>
+        <div class="stat-card"><div class="stat-icon teal">🏥</div><div><div class="stat-value" id="s-depts">—</div><div class="stat-label">Departments</div></div></div>
+      </div>
+
+      <div class="card section">
+        <div class="card-header">
+          <div class="search-bar" style="flex-wrap:wrap;gap:.6rem;">
+            <div class="search-input-wrap" style="flex:1;min-width:180px;">
+              <span class="search-icon">🔍</span>
+              <input id="search-input" class="search-input" placeholder="Search doctors…" />
+            </div>
+            <select id="filter-dept" class="form-control" style="width:180px;">
+              <option value="">All Departments</option>
+            </select>
+            <select id="filter-status" class="form-control" style="width:150px;">
+              <option value="">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="on-leave">On Leave</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Doctor</th>
+                <th>Specialization</th>
+                <th class="hide-sm">Department</th>
+                <th class="hide-sm">Phone</th>
+                <th class="hide-sm">Schedule</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="doctors-table">
+              <tr><td colspan="7" class="empty-state"><div class="empty-icon">👨‍⚕️</div><p>Loading…</p></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL -->
+  <div id="doctor-modal">
+    <div class="modal" style="max-width:620px;width:100%;">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-title">Add New Doctor</span>
+        <button class="modal-close" id="modal-close-btn" type="button">✕</button>
+      </div>
+      <div class="modal-body" style="max-height:68vh;overflow-y:auto;">
+        <input type="hidden" id="edit-id" />
+        <div class="form-row">
+          <div class="form-group">
+            <label>Full Name *</label>
+            <input id="d-name" class="form-control" placeholder="Dr. Jane Smith" />
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input id="d-email" type="email" class="form-control" placeholder="doctor@hospital.com" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Specialization *</label>
+            <input id="d-spec" class="form-control" placeholder="Cardiology, Pediatrics…" />
+          </div>
+          <div class="form-group">
+            <label>Department</label>
+            <input id="d-dept" class="form-control" placeholder="Internal Medicine" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Phone</label>
+            <input id="d-phone" class="form-control" placeholder="+1 555 0100" />
+          </div>
+          <div class="form-group">
+            <label>License No.</label>
+            <input id="d-license" class="form-control" placeholder="MD-12345" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Qualifications</label>
+          <input id="d-qual" class="form-control" placeholder="MBBS, MD, FRCS…" />
+        </div>
+        <div class="form-group">
+          <label style="display:block;margin-bottom:.5rem;">Working Days</label>
+          <div id="days-picker" style="display:flex;gap:.4rem;flex-wrap:wrap;"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Shift Start</label>
+            <input id="d-shift-start" type="time" class="form-control" />
+          </div>
+          <div class="form-group">
+            <label>Shift End</label>
+            <input id="d-shift-end" type="time" class="form-control" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="d-status" class="form-control">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="on-leave">On Leave</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancel-btn" type="button">Cancel</button>
+        <button class="btn btn-primary" id="save-btn" type="button">Save Doctor</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="../js/firebase-config.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/layout.js"></script>
+  <script>
+    var currentUser, allDoctors = [];
+    var DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('add-btn').addEventListener('click', function(){ openModal(null); });
+      document.getElementById('save-btn').addEventListener('click', saveDoctor);
+      document.getElementById('cancel-btn').addEventListener('click', closeModal);
+      document.getElementById('modal-close-btn').addEventListener('click', closeModal);
+      document.getElementById('search-input').addEventListener('input', filterDoctors);
+      document.getElementById('filter-dept').addEventListener('change', filterDoctors);
+      document.getElementById('filter-status').addEventListener('change', filterDoctors);
+      document.getElementById('doctor-modal').addEventListener('click', function(e){
+        if (e.target === this) closeModal();
+      });
+      document.addEventListener('keydown', function(e){
+        if (e.key === 'Escape') closeModal();
+      });
+    });
+
+    function buildDayPills(selected) {
+      selected = selected || [];
+      var container = document.getElementById('days-picker');
+      container.innerHTML = '';
+      DAYS.forEach(function(day) {
+        var label = document.createElement('label');
+        label.className = 'day-pill' + (selected.includes(day) ? ' checked' : '');
+        label.dataset.day = day;
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = day;
+        cb.checked = selected.includes(day);
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(day));
+        label.addEventListener('click', function(e){
+          e.preventDefault();
+          this.classList.toggle('checked');
+          cb.checked = this.classList.contains('checked');
+        });
+        container.appendChild(label);
+      });
+    }
+
+    function getSelectedDays() {
+      return Array.from(document.querySelectorAll('#days-picker .day-pill.checked'))
+        .map(function(p){ return p.dataset.day; });
+    }
+
+    async function init() {
+      currentUser = await Auth.requireAuth(['admin','receptionist']);
+      Layout.render(currentUser);
+      Layout.setTitle('Doctor Management');
+      if (currentUser.role === 'admin') {
+        document.getElementById('add-btn').style.display = 'inline-flex';
+      }
+      loadDoctors();
+      document.getElementById('loader').classList.add('hidden');
+    }
+
+    function loadDoctors() {
+      db.collection('users').where('role','==','doctor').onSnapshot(function(snap) {
+        allDoctors = snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); });
+        document.getElementById('s-total').textContent = allDoctors.length;
+        document.getElementById('s-active').textContent = allDoctors.filter(function(d){ return (d.status||'active')==='active'; }).length;
+        var depts = new Set(allDoctors.map(function(d){ return d.department; }).filter(Boolean));
+        document.getElementById('s-depts').textContent = depts.size;
+        var sel = document.getElementById('filter-dept');
+        var cur = sel.value;
+        sel.innerHTML = '<option value="">All Departments</option>' +
+          Array.from(depts).map(function(d){ return '<option'+(d===cur?' selected':'')+'>'+d+'</option>'; }).join('');
+        db.collection('appointments').where('date','==',Utils.today()).get()
+          .then(function(s){ document.getElementById('s-appts').textContent = s.size; })
+          .catch(function(){ document.getElementById('s-appts').textContent = '0'; });
+        filterDoctors();
+      });
+    }
+
+    function renderTable(doctors) {
+      var tbody = document.getElementById('doctors-table');
+      if (!doctors.length) { tbody.innerHTML = Utils.emptyState('No doctors found.'); return; }
+      var statusColor = { active:'green', inactive:'gray', 'on-leave':'orange' };
+      tbody.innerHTML = doctors.map(function(d) {
+        var initials = (d.name||'DR').split(' ').map(function(n){ return n[0]; }).join('').toUpperCase().slice(0,2);
+        var days  = Array.isArray(d.workingDays) ? d.workingDays.join(', ') : '—';
+        var shift = d.shiftStart && d.shiftEnd ? d.shiftStart+' – '+d.shiftEnd : '—';
+        return '<tr>'
+          +'<td><div style="display:flex;align-items:center;gap:.65rem;">'
+          +'<div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--teal-500),var(--teal-800));display:flex;align-items:center;justify-content:center;font-size:.78rem;color:#fff;font-weight:700;flex-shrink:0;">'+initials+'</div>'
+          +'<div><strong>'+(d.name||'—')+'</strong><div class="text-xs text-muted">'+(d.qualifications||'')+'</div></div>'
+          +'</div></td>'
+          +'<td>'+(d.specialization||'—')+'</td>'
+          +'<td class="hide-sm">'+(d.department||'—')+'</td>'
+          +'<td class="hide-sm">'+(d.phone||'—')+'</td>'
+          +'<td class="hide-sm text-xs"><strong>'+days+'</strong><div class="text-muted">'+shift+'</div></td>'
+          +'<td>'+Utils.badge(d.status||'active', statusColor[d.status||'active']||'gray')+'</td>'
+          +'<td><div class="table-actions">'
+          +(currentUser.role==='admin'
+            ? '<button class="btn btn-sm btn-secondary" data-edit="'+d.id+'">✏️ Edit</button>'
+             +'<button class="btn btn-sm btn-danger" data-del="'+d.id+'" data-name="'+(d.name||'').replace(/"/g,'')+'">🗑</button>'
+            : '<span class="text-muted text-xs">View only</span>')
+          +'</div></td></tr>';
+      }).join('');
+      tbody.querySelectorAll('[data-edit]').forEach(function(btn){
+        btn.addEventListener('click', function(){ editDoctor(this.dataset.edit); });
+      });
+      tbody.querySelectorAll('[data-del]').forEach(function(btn){
+        btn.addEventListener('click', function(){ deleteDoctor(this.dataset.del, this.dataset.name); });
+      });
+    }
+
+    function filterDoctors() {
+      var q = document.getElementById('search-input').value.toLowerCase();
+      var dept = document.getElementById('filter-dept').value;
+      var status = document.getElementById('filter-status').value;
+      renderTable(allDoctors.filter(function(d){
+        var mq = !q || (d.name||'').toLowerCase().includes(q) || (d.specialization||'').toLowerCase().includes(q);
+        var md = !dept || d.department === dept;
+        var ms = !status || (d.status||'active') === status;
+        return mq && md && ms;
+      }));
+    }
+
+    function openModal(data) {
+      document.getElementById('modal-title').textContent  = data ? 'Edit Doctor' : 'Add New Doctor';
+      document.getElementById('edit-id').value            = data ? data.id : '';
+      document.getElementById('d-name').value             = data ? (data.name||'') : '';
+      document.getElementById('d-email').value            = data ? (data.email||'') : '';
+      document.getElementById('d-spec').value             = data ? (data.specialization||'') : '';
+      document.getElementById('d-dept').value             = data ? (data.department||'') : '';
+      document.getElementById('d-phone').value            = data ? (data.phone||'') : '';
+      document.getElementById('d-license').value          = data ? (data.licenseNo||'') : '';
+      document.getElementById('d-qual').value             = data ? (data.qualifications||'') : '';
+      document.getElementById('d-shift-start').value      = data ? (data.shiftStart||'') : '';
+      document.getElementById('d-shift-end').value        = data ? (data.shiftEnd||'') : '';
+      document.getElementById('d-status').value           = data ? (data.status||'active') : 'active';
+      buildDayPills(data && Array.isArray(data.workingDays) ? data.workingDays : []);
+      var btn = document.getElementById('save-btn');
+      btn.disabled = false;
+      btn.textContent = data ? 'Update Doctor' : 'Save Doctor';
+      document.getElementById('doctor-modal').classList.add('open');
+      setTimeout(function(){ document.getElementById('d-name').focus(); }, 150);
+    }
+
+    function closeModal() {
+      document.getElementById('doctor-modal').classList.remove('open');
+    }
+
+    async function saveDoctor() {
+      var name = document.getElementById('d-name').value.trim();
+      var spec = document.getElementById('d-spec').value.trim();
+      if (!name) { Utils.toast('Doctor name is required.','error'); document.getElementById('d-name').focus(); return; }
+      if (!spec) { Utils.toast('Specialization is required.','error'); document.getElementById('d-spec').focus(); return; }
+      var btn = document.getElementById('save-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Saving…';
+      var editId = document.getElementById('edit-id').value;
+      var payload = {
+        name: name, role: 'doctor',
+        email:          document.getElementById('d-email').value.trim(),
+        specialization: spec,
+        department:     document.getElementById('d-dept').value.trim(),
+        phone:          document.getElementById('d-phone').value.trim(),
+        licenseNo:      document.getElementById('d-license').value.trim(),
+        qualifications: document.getElementById('d-qual').value.trim(),
+        workingDays:    getSelectedDays(),
+        shiftStart:     document.getElementById('d-shift-start').value,
+        shiftEnd:       document.getElementById('d-shift-end').value,
+        status:         document.getElementById('d-status').value,
+        updatedAt:      firebase.firestore.FieldValue.serverTimestamp()
+      };
+      try {
+        if (editId) {
+          await db.collection('users').doc(editId).update(payload);
+          Utils.toast('Dr. '+name+' updated successfully.', 'success');
+        } else {
+          payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+          await db.collection('users').add(payload);
+          Utils.toast('Dr. '+name+' added successfully.', 'success');
+        }
+        closeModal();
+      } catch(err) {
+        Utils.toast('Error: '+err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = editId ? 'Update Doctor' : 'Save Doctor';
+      }
+    }
+
+    function editDoctor(id) {
+      var doc = allDoctors.find(function(d){ return d.id === id; });
+      if (doc) openModal(doc);
+    }
+
+    async function deleteDoctor(id, name) {
+      if (!confirm('Remove Dr. '+name+' from the system?\nThis cannot be undone.')) return;
+      try {
+        await db.collection('users').doc(id).delete();
+        Utils.toast('Dr. '+name+' removed.', 'info');
+      } catch(err) {
+        Utils.toast('Error: '+err.message, 'error');
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

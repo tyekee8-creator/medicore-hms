@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Billing – MediCore HMS</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    #bill-modal, #view-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,.55);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    #bill-modal.open, #view-modal.open { display: flex; }
+    .modal { animation: modalIn .22s ease; }
+    @keyframes modalIn {
+      from { opacity:0; transform: scale(.95) translateY(12px); }
+      to   { opacity:1; transform: scale(1) translateY(0); }
+    }
+    .btn:active:not(:disabled) { transform: scale(.97); }
+    @media (max-width: 900px) { .hide-sm { display: none !important; } }
+    @media (max-width: 600px) { .form-row { grid-template-columns: 1fr !important; } }
+
+    /* ── Print styles ── */
+    @media print {
+      body * { visibility: hidden; }
+      #print-area, #print-area * { visibility: visible; }
+      #print-area {
+        position: fixed;
+        inset: 0;
+        padding: 2rem;
+        background: #fff;
+      }
+      .no-print { display: none !important; }
+    }
+
+    #print-area { display: none; }
+
+    /* ── Invoice styling ── */
+    .invoice-wrap {
+      max-width: 750px;
+      margin: 0 auto;
+      font-family: 'DM Sans', Arial, sans-serif;
+      color: #0f172a;
+      background: #fff;
+    }
+    .inv-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 1.25rem;
+      margin-bottom: 1.25rem;
+      border-bottom: 3px solid #0d9488;
+    }
+    .inv-hospital { font-size: 1.35rem; font-weight: 800; color: #0d3d3a; }
+    .inv-hospital-sub { font-size: .8rem; color: #64748b; margin-top: .2rem; }
+    .inv-meta { text-align: right; }
+    .inv-meta .inv-id { font-size: .95rem; font-weight: 700; font-family: monospace; color: #0d3d3a; }
+    .inv-meta .inv-date { font-size: .8rem; color: #64748b; margin-top: .2rem; }
+    .inv-badge {
+      display: inline-block;
+      margin-top: .35rem;
+      padding: .25rem .75rem;
+      border-radius: 999px;
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .inv-badge.paid    { background: #dcfce7; color: #166534; }
+    .inv-badge.unpaid  { background: #fee2e2; color: #991b1b; }
+    .inv-badge.partial { background: #ffedd5; color: #9a3412; }
+    .inv-parties {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.25rem;
+      padding: 1rem;
+      background: #f8fafc;
+      border-radius: 10px;
+    }
+    .inv-party-label {
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: #94a3b8;
+      margin-bottom: .3rem;
+    }
+    .inv-party-name { font-size: .95rem; font-weight: 700; }
+    .inv-party-sub  { font-size: .8rem; color: #64748b; margin-top: .15rem; }
+    .inv-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .85rem;
+      margin-bottom: 1.25rem;
+    }
+    .inv-table thead tr { background: #0d3d3a; color: #fff; }
+    .inv-table thead th { padding: .6rem .85rem; text-align: left; font-size: .75rem; font-weight: 600; letter-spacing: .04em; }
+    .inv-table thead th.right { text-align: right; }
+    .inv-table tbody tr { border-bottom: 1px solid #e2e8f0; }
+    .inv-table tbody tr:nth-child(even) { background: #f8fafc; }
+    .inv-table tbody td { padding: .55rem .85rem; }
+    .inv-table tbody td.right { text-align: right; }
+    .inv-totals {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 1.25rem;
+    }
+    .inv-totals table { min-width: 250px; font-size: .85rem; border-collapse: collapse; }
+    .inv-totals td { padding: .32rem .75rem; }
+    .inv-totals td:last-child { text-align: right; font-weight: 600; }
+    .inv-totals .t-label { color: #64748b; font-weight: 400; }
+    .inv-totals .t-total td { border-top: 2px solid #0d9488; font-size: 1rem; font-weight: 800; padding-top: .6rem; color: #0d3d3a; }
+    .inv-totals .t-paid td { color: #16a34a; }
+    .inv-totals .t-balance td { border-top: 1px solid #e2e8f0; padding-top: .5rem; }
+    .inv-notes {
+      background: #f0fdfa;
+      border-left: 3px solid #0d9488;
+      padding: .75rem 1rem;
+      border-radius: 0 8px 8px 0;
+      font-size: .83rem;
+      margin-bottom: 1.25rem;
+      color: #0f172a;
+    }
+    .inv-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 1rem;
+      border-top: 1px solid #e2e8f0;
+      font-size: .78rem;
+      color: #94a3b8;
+      margin-top: 1rem;
+    }
+    .inv-thank {
+      text-align: center;
+      margin-top: 1rem;
+      font-size: .85rem;
+      color: #0d9488;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hidden print area -->
+  <div id="print-area"></div>
+
+  <div class="page-loader" id="loader">
+    <div class="page-loader-inner"><div class="loader-ring"></div></div>
+  </div>
+
+  <div class="app-shell">
+    <div class="main-content" id="main">
+
+      <div class="page-header">
+        <div class="page-header-title">
+          <h2>Billing & Payments</h2>
+          <p>Create invoices, track payments, and manage outstanding balances.</p>
+        </div>
+        <button class="btn btn-primary" id="add-btn">＋ Create Bill</button>
+      </div>
+
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1.5rem;">
+        <div class="stat-card"><div class="stat-icon green">💵</div><div><div class="stat-value" id="s-revenue">—</div><div class="stat-label">Total Revenue</div></div></div>
+        <div class="stat-card"><div class="stat-icon red">📌</div><div><div class="stat-value" id="s-outstanding">—</div><div class="stat-label">Outstanding</div></div></div>
+        <div class="stat-card"><div class="stat-icon amber">🕐</div><div><div class="stat-value" id="s-unpaid">—</div><div class="stat-label">Unpaid Bills</div></div></div>
+        <div class="stat-card"><div class="stat-icon teal">📋</div><div><div class="stat-value" id="s-total">—</div><div class="stat-label">Total Bills</div></div></div>
+      </div>
+
+      <div class="card section">
+        <div class="card-header">
+          <div class="search-bar" style="flex-wrap:wrap;gap:.6rem;">
+            <div class="search-input-wrap" style="flex:1;min-width:180px;">
+              <span class="search-icon">🔍</span>
+              <input id="search-input" class="search-input" placeholder="Search by patient, bill ID…" />
+            </div>
+            <select id="filter-status" class="form-control" style="width:160px;">
+              <option value="">All Statuses</option>
+              <option value="unpaid">Unpaid</option>
+              <option value="partial">Partial</option>
+              <option value="paid">Paid</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Bill ID</th><th>Patient</th>
+                <th class="hide-sm">Services</th>
+                <th>Amount</th>
+                <th class="hide-sm">Paid</th>
+                <th class="hide-sm">Balance</th>
+                <th class="hide-sm">Date</th>
+                <th>Status</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="bills-table">
+              <tr><td colspan="9" class="empty-state"><div class="empty-icon">💳</div><p>Loading…</p></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CREATE / EDIT BILL MODAL -->
+  <div id="bill-modal">
+    <div class="modal" style="max-width:680px;width:100%;">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-title">Create Bill</span>
+        <button class="modal-close" id="bm-close" type="button">✕</button>
+      </div>
+      <div class="modal-body" style="max-height:68vh;overflow-y:auto;">
+        <input type="hidden" id="edit-id" />
+        <div class="form-row">
+          <div class="form-group">
+            <label>Patient *</label>
+            <select id="b-patient" class="form-control"><option value="">— Select Patient —</option></select>
+          </div>
+          <div class="form-group">
+            <label>Bill Date</label>
+            <input id="b-date" type="date" class="form-control" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;justify-content:space-between;">
+            Services / Items
+            <button type="button" class="btn btn-secondary btn-sm" id="add-item-btn">＋ Add Item</button>
+          </label>
+          <div id="item-rows" style="display:flex;flex-direction:column;gap:.5rem;margin-top:.5rem;"></div>
+          <div style="display:flex;justify-content:flex-end;margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border);">
+            <span class="text-muted text-sm">Subtotal: </span>
+            <strong id="subtotal-display" style="margin-left:.5rem;">$0.00</strong>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Discount ($)</label>
+            <input id="b-discount" type="number" min="0" class="form-control" value="0" />
+          </div>
+          <div class="form-group">
+            <label>Tax (%)</label>
+            <input id="b-tax" type="number" min="0" max="100" class="form-control" value="0" />
+          </div>
+        </div>
+        <div style="background:var(--teal-50);border-radius:10px;padding:1rem 1.25rem;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:600;color:var(--teal-800);">Total Amount</span>
+          <span style="font-size:1.4rem;font-weight:700;color:var(--teal-900);" id="total-display">$0.00</span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Amount Paid ($)</label>
+            <input id="b-paid" type="number" min="0" class="form-control" value="0" />
+          </div>
+          <div class="form-group">
+            <label>Payment Method</label>
+            <select id="b-method" class="form-control">
+              <option value="">—</option>
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="insurance">Insurance</option>
+              <option value="bank-transfer">Bank Transfer</option>
+              <option value="mobile-money">Mobile Money</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Status</label>
+            <select id="b-status" class="form-control">
+              <option value="unpaid">Unpaid</option>
+              <option value="partial">Partial</option>
+              <option value="paid">Paid</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Insurance Provider</label>
+            <input id="b-insurance" class="form-control" placeholder="Provider name (optional)" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="b-notes" class="form-control" rows="2" placeholder="Billing notes…"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="bm-cancel" type="button">Cancel</button>
+        <button class="btn btn-primary"   id="bm-save"   type="button">Save Bill</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIEW / INVOICE MODAL -->
+  <div id="view-modal">
+    <div class="modal" style="max-width:700px;width:100%;">
+      <div class="modal-header">
+        <span class="modal-title">Invoice Detail</span>
+        <button class="modal-close" id="vm-close" type="button">✕</button>
+      </div>
+      <div class="modal-body" id="view-body" style="max-height:72vh;overflow-y:auto;"></div>
+      <div class="modal-footer no-print">
+        <button class="btn btn-secondary" id="vm-cancel"   type="button">Close</button>
+        <button class="btn btn-secondary" id="vm-download" type="button">⬇ Download PDF</button>
+        <button class="btn btn-primary"   id="vm-print"    type="button">🖨 Print Invoice</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Libraries -->
+  <!-- jsPDF for PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- html2canvas to render HTML to canvas for PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="../js/firebase-config.js"></script>
+  <script src="../js/i18n.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/layout.js"></script>
+
+  <script>
+    var currentUser, allBills = [], patients = [], currentBill = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('add-btn').addEventListener('click', function(){ openModal(null); });
+      document.getElementById('bm-save').addEventListener('click', saveBill);
+      document.getElementById('bm-cancel').addEventListener('click', closeModal);
+      document.getElementById('bm-close').addEventListener('click', closeModal);
+      document.getElementById('vm-close').addEventListener('click', closeViewModal);
+      document.getElementById('vm-cancel').addEventListener('click', closeViewModal);
+      document.getElementById('vm-print').addEventListener('click', printInvoice);
+      document.getElementById('vm-download').addEventListener('click', downloadPDF);
+      document.getElementById('add-item-btn').addEventListener('click', function(){ addItemRow({}); });
+      document.getElementById('b-discount').addEventListener('input', recalcTotal);
+      document.getElementById('b-tax').addEventListener('input', recalcTotal);
+      document.getElementById('b-paid').addEventListener('input', recalcStatus);
+      document.getElementById('search-input').addEventListener('input', filterBills);
+      document.getElementById('filter-status').addEventListener('change', filterBills);
+      document.getElementById('bill-modal').addEventListener('click', function(e){ if(e.target===this) closeModal(); });
+      document.getElementById('view-modal').addEventListener('click', function(e){ if(e.target===this) closeViewModal(); });
+      document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ closeModal(); closeViewModal(); } });
+    });
+
+    async function init() {
+      currentUser = await Auth.requireAuth(['admin','receptionist']);
+      Layout.render(currentUser);
+      Layout.setTitle('Billing & Payments');
+      await loadPatients();
+      loadBills();
+      document.getElementById('b-date').value = Utils.today();
+      document.getElementById('loader').classList.add('hidden');
+    }
+
+    async function loadPatients() {
+      var snap = await db.collection('patients').orderBy('name').get();
+      patients = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+      document.getElementById('b-patient').innerHTML = '<option value="">— Select Patient —</option>'
+        + patients.map(function(p){
+            return '<option value="'+p.id+'" data-name="'+(p.name||'').replace(/"/g,'')+'">'
+              +(p.name||'')+' ('+(p.patientId||p.id.slice(0,6))+')</option>';
+          }).join('');
+    }
+
+    function loadBills() {
+      db.collection('bills').orderBy('createdAt','desc').onSnapshot(function(snap){
+        allBills = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+        updateStats();
+        filterBills();
+      });
+    }
+
+    function updateStats() {
+      var revenue=0, outstanding=0, unpaid=0;
+      allBills.forEach(function(b){
+        revenue     += (b.amountPaid||0);
+        outstanding += Math.max(0,(b.totalAmount||0)-(b.amountPaid||0));
+        if(b.status==='unpaid'||b.status==='partial') unpaid++;
+      });
+      document.getElementById('s-revenue').textContent     = Utils.currency(revenue);
+      document.getElementById('s-outstanding').textContent = Utils.currency(outstanding);
+      document.getElementById('s-unpaid').textContent      = unpaid;
+      document.getElementById('s-total').textContent       = allBills.length;
+    }
+
+    function filterBills() {
+      var q      = document.getElementById('search-input').value.toLowerCase();
+      var status = document.getElementById('filter-status').value;
+      var filtered = allBills.filter(function(b){
+        var mq = !q || (b.patientName||'').toLowerCase().includes(q) || (b.billId||'').toLowerCase().includes(q);
+        var ms = !status || b.status===status;
+        return mq && ms;
+      });
+      renderTable(filtered);
+    }
+
+    function renderTable(bills) {
+      var tbody = document.getElementById('bills-table');
+      if (!bills.length) { tbody.innerHTML = Utils.emptyState('No bills found.'); return; }
+      tbody.innerHTML = bills.map(function(b){
+        var balance  = Math.max(0,(b.totalAmount||0)-(b.amountPaid||0));
+        var services = Array.isArray(b.items)
+          ? b.items.map(function(i){ return i.name; }).filter(Boolean).slice(0,2).join(', ')+(b.items.length>2?'…':'')
+          : '—';
+        var sid = (b.id||'').replace(/"/g,'');
+        return '<tr>'
+          +'<td class="mono text-xs">'+(b.billId||b.id.slice(0,8))+'</td>'
+          +'<td><strong>'+(b.patientName||'—')+'</strong></td>'
+          +'<td class="hide-sm text-sm" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+services+'</td>'
+          +'<td><strong>'+Utils.currency(b.totalAmount)+'</strong></td>'
+          +'<td class="hide-sm text-sm" style="color:var(--success);">'+Utils.currency(b.amountPaid)+'</td>'
+          +'<td class="hide-sm text-sm" style="color:'+(balance>0?'var(--danger)':'var(--success)')+';">'+Utils.currency(balance)+'</td>'
+          +'<td class="hide-sm mono text-sm">'+(b.billDate||Utils.formatDate(b.createdAt))+'</td>'
+          +'<td>'+Utils.statusBadge(b.status)+'</td>'
+          +'<td><div class="table-actions">'
+          +'<button class="btn btn-sm btn-secondary" data-view="'+sid+'">👁 View</button>'
+          +'<button class="btn btn-sm btn-secondary" data-edit="'+sid+'">✏️</button>'
+          +(b.status!=='paid'?'<button class="btn btn-sm btn-accent" data-paid="'+sid+'">✓ Paid</button>':'')
+          +'<button class="btn btn-sm btn-secondary" data-qprint="'+sid+'">🖨</button>'
+          +(currentUser.role==='admin'?'<button class="btn btn-sm btn-danger" data-del="'+sid+'">🗑</button>':'')
+          +'</div></td>'
+          +'</tr>';
+      }).join('');
+
+      tbody.querySelectorAll('[data-view]').forEach(function(b){ b.addEventListener('click', function(){ viewBill(this.dataset.view); }); });
+      tbody.querySelectorAll('[data-edit]').forEach(function(b){ b.addEventListener('click', function(){ editBill(this.dataset.edit); }); });
+      tbody.querySelectorAll('[data-paid]').forEach(function(b){ b.addEventListener('click', function(){ markPaid(this.dataset.paid); }); });
+      tbody.querySelectorAll('[data-qprint]').forEach(function(b){ b.addEventListener('click', function(){ quickPrint(this.dataset.qprint); }); });
+      tbody.querySelectorAll('[data-del]').forEach(function(b){ b.addEventListener('click', function(){ deleteBill(this.dataset.del); }); });
+    }
+
+    /* ════════════════════════════════════
+       BUILD INVOICE HTML
+    ════════════════════════════════════ */
+    function buildInvoiceHTML(b) {
+      var balance   = Math.max(0,(b.totalAmount||0)-(b.amountPaid||0));
+      var statusCls = b.status==='paid'?'paid':b.status==='partial'?'partial':'unpaid';
+      var itemRows  = Array.isArray(b.items) ? b.items.map(function(i){
+        return '<tr>'
+          +'<td>'+i.name+'</td>'
+          +'<td class="right">'+i.qty+'</td>'
+          +'<td class="right">'+Utils.currency(i.price)+'</td>'
+          +'<td class="right"><strong>'+Utils.currency(i.qty*i.price)+'</strong></td>'
+          +'</tr>';
+      }).join('') : '<tr><td colspan="4" style="text-align:center;color:#94a3b8;">No items</td></tr>';
+
+      return '<div class="invoice-wrap" id="invoice-content">'
+        +'<div class="inv-header">'
+        +'<div>'
+        +'<div class="inv-hospital">🏥 MediCore HMS</div>'
+        +'<div class="inv-hospital-sub">Hospital Management System</div>'
+        +'<div class="inv-hospital-sub">Tel: +1 555 0000 &nbsp;|&nbsp; info@medicore.com</div>'
+        +'</div>'
+        +'<div class="inv-meta">'
+        +'<div style="font-size:.68rem;color:#94a3b8;text-transform:uppercase;font-weight:700;letter-spacing:.06em;">Invoice</div>'
+        +'<div class="inv-id">'+(b.billId||b.id.slice(0,8))+'</div>'
+        +'<div class="inv-date">Date: '+(b.billDate||Utils.formatDate(b.createdAt))+'</div>'
+        +'<span class="inv-badge '+statusCls+'">'+b.status+'</span>'
+        +'</div>'
+        +'</div>'
+        +'<div class="inv-parties">'
+        +'<div>'
+        +'<div class="inv-party-label">Billed To</div>'
+        +'<div class="inv-party-name">'+(b.patientName||'—')+'</div>'
+        +(b.insuranceProvider?'<div class="inv-party-sub">Insurance: '+b.insuranceProvider+'</div>':'')
+        +'</div>'
+        +'<div>'
+        +'<div class="inv-party-label">Payment Info</div>'
+        +'<div class="inv-party-name">'+Utils.currency(b.totalAmount)+'</div>'
+        +(b.paymentMethod?'<div class="inv-party-sub">Method: '+b.paymentMethod+'</div>':'')
+        +'<div class="inv-party-sub">Paid: '+Utils.currency(b.amountPaid)+'</div>'
+        +'</div>'
+        +'</div>'
+        +'<table class="inv-table">'
+        +'<thead><tr>'
+        +'<th>Description</th>'
+        +'<th class="right">Qty</th>'
+        +'<th class="right">Unit Price</th>'
+        +'<th class="right">Total</th>'
+        +'</tr></thead>'
+        +'<tbody>'+itemRows+'</tbody>'
+        +'</table>'
+        +'<div class="inv-totals"><table>'
+        +'<tr><td class="t-label">Subtotal</td><td>'+Utils.currency(b.subtotal||0)+'</td></tr>'
+        +(b.discount?'<tr><td class="t-label">Discount</td><td style="color:#16a34a;">− '+Utils.currency(b.discount)+'</td></tr>':'')
+        +(b.taxPct?'<tr><td class="t-label">Tax ('+b.taxPct+'%)</td><td>'+Utils.currency((b.totalAmount||0)-Math.max(0,(b.subtotal||0)-(b.discount||0)))+'</td></tr>':'')
+        +'<tr class="t-total"><td>Total Amount</td><td>'+Utils.currency(b.totalAmount)+'</td></tr>'
+        +'<tr class="t-paid"><td>Amount Paid</td><td>'+Utils.currency(b.amountPaid)+'</td></tr>'
+        +'<tr class="t-balance"><td style="color:'+(balance>0?'#dc2626':'#16a34a')+';">Balance Due</td>'
+        +'<td style="color:'+(balance>0?'#dc2626':'#16a34a')+';">'+Utils.currency(balance)+'</td></tr>'
+        +'</table></div>'
+        +(b.notes?'<div class="inv-notes"><strong>Notes:</strong> '+b.notes+'</div>':'')
+        +'<div class="inv-footer">'
+        +'<span>Generated by MediCore HMS</span>'
+        +'<span>'+new Date().toLocaleString()+'</span>'
+        +'</div>'
+        +'<div class="inv-thank">Thank you for choosing MediCore Hospital. Wishing you a speedy recovery! 💚</div>'
+        +'</div>';
+    }
+
+    /* ════════════════════════════════════
+       PRINT INVOICE
+    ════════════════════════════════════ */
+    function printInvoice() {
+      if (!currentBill) return;
+      var pa = document.getElementById('print-area');
+      pa.innerHTML = buildInvoiceHTML(currentBill);
+      pa.style.display = 'block';
+      window.print();
+      pa.style.display = 'none';
+      pa.innerHTML = '';
+    }
+
+    function quickPrint(id) {
+      var b = allBills.find(function(x){ return x.id===id; });
+      if (!b) return;
+      var pa = document.getElementById('print-area');
+      pa.innerHTML = buildInvoiceHTML(b);
+      pa.style.display = 'block';
+      window.print();
+      pa.style.display = 'none';
+      pa.innerHTML = '';
+    }
+
+    /* ════════════════════════════════════
+       DOWNLOAD AS PDF DOCUMENT
+    ════════════════════════════════════ */
+    function downloadPDF() {
+      if (!currentBill) return;
+
+      var btn = document.getElementById('vm-download');
+      btn.disabled  = true;
+      btn.innerHTML = '<span class="spinner"></span> Generating PDF…';
+
+      // Build invoice in hidden area
+      var pa = document.getElementById('print-area');
+      pa.innerHTML = buildInvoiceHTML(currentBill);
+      pa.style.cssText = [
+        'display:block',
+        'position:fixed',
+        'left:-9999px',
+        'top:0',
+        'width:794px',
+        'background:#ffffff',
+        'padding:2rem',
+        'font-family:Arial,sans-serif',
+        'color:#0f172a',
+        'z-index:-1'
+      ].join(';');
+
+      // Wait for render then capture
+      setTimeout(function() {
+        html2canvas(pa, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          width: 794,
+          windowWidth: 794,
+          logging: false
+        }).then(function(canvas) {
+
+          // A4 page dimensions in mm
+          var imgWidth   = 210;
+          var pageHeight = 297;
+          var imgHeight  = (canvas.height * imgWidth) / canvas.width;
+
+          // Init jsPDF
+          var jsPDF = window.jspdf.jsPDF;
+          var pdf   = new jsPDF({
+            orientation: imgHeight > pageHeight ? 'portrait' : 'portrait',
+            unit: 'mm',
+            format: 'a4'
+          });
+
+          var imgData    = canvas.toDataURL('image/png', 1.0);
+          var yPosition  = 0;
+          var remaining  = imgHeight;
+
+          // Handle multi-page if invoice is long
+          while (remaining > 0) {
+            if (yPosition > 0) pdf.addPage();
+
+            var sliceHeight = Math.min(remaining, pageHeight);
+            pdf.addImage(
+              imgData,
+              'PNG',
+              0,            // x
+              -yPosition,   // y offset (negative to move up for next pages)
+              imgWidth,
+              imgHeight
+            );
+
+            yPosition += pageHeight;
+            remaining -= pageHeight;
+          }
+
+          // Save the PDF
+          var fileName = 'Invoice-' + (currentBill.billId || currentBill.id.slice(0,8)) + '.pdf';
+          pdf.save(fileName);
+
+          // Cleanup
+          pa.style.cssText = 'display:none';
+          pa.innerHTML = '';
+          btn.disabled  = false;
+          btn.innerHTML = '⬇ Download PDF';
+          Utils.toast('Invoice downloaded as PDF! Check your Downloads folder. 📄', 'success');
+
+        }).catch(function(err) {
+          pa.style.cssText = 'display:none';
+          pa.innerHTML = '';
+          btn.disabled  = false;
+          btn.innerHTML = '⬇ Download PDF';
+          Utils.toast('PDF generation failed: ' + err.message, 'error');
+        });
+      }, 400);
+    }
+
+    /* ════════════════════════════════════
+       VIEW BILL MODAL
+    ════════════════════════════════════ */
+    function viewBill(id) {
+      var b = allBills.find(function(x){ return x.id===id; });
+      if (!b) return;
+      currentBill = b;
+      document.getElementById('view-body').innerHTML = buildInvoiceHTML(b);
+      document.getElementById('view-modal').classList.add('open');
+    }
+
+    function closeViewModal() {
+      document.getElementById('view-modal').classList.remove('open');
+      currentBill = null;
+    }
+
+    /* ════════════════════════════════════
+       CREATE / EDIT MODAL
+    ════════════════════════════════════ */
+    function openModal(data) {
+      document.getElementById('modal-title').textContent = data ? 'Edit Bill' : 'Create Bill';
+      document.getElementById('edit-id').value     = data ? data.id : '';
+      document.getElementById('b-patient').value   = data ? (data.patientId||'') : '';
+      document.getElementById('b-date').value      = data ? (data.billDate||Utils.today()) : Utils.today();
+      document.getElementById('b-discount').value  = data ? (data.discount||0) : 0;
+      document.getElementById('b-tax').value       = data ? (data.taxPct||0) : 0;
+      document.getElementById('b-paid').value      = data ? (data.amountPaid||0) : 0;
+      document.getElementById('b-method').value    = data ? (data.paymentMethod||'') : '';
+      document.getElementById('b-status').value    = data ? (data.status||'unpaid') : 'unpaid';
+      document.getElementById('b-insurance').value = data ? (data.insuranceProvider||'') : '';
+      document.getElementById('b-notes').value     = data ? (data.notes||'') : '';
+      document.getElementById('item-rows').innerHTML = '';
+      var items = data && Array.isArray(data.items) ? data.items : [];
+      if (items.length) items.forEach(function(i){ addItemRow(i); });
+      else addItemRow({});
+      recalcTotal();
+      var btn = document.getElementById('bm-save');
+      btn.disabled    = false;
+      btn.textContent = data ? 'Update Bill' : 'Save Bill';
+      document.getElementById('bill-modal').classList.add('open');
+      setTimeout(function(){ document.getElementById('b-patient').focus(); }, 150);
+    }
+
+    function closeModal() { document.getElementById('bill-modal').classList.remove('open'); }
+
+    /* ════════════════════════════════════
+       LINE ITEMS
+    ════════════════════════════════════ */
+    function addItemRow(data) {
+      data = data || {};
+      var container = document.getElementById('item-rows');
+      var div = document.createElement('div');
+      div.className = 'item-row';
+      div.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:.5rem;align-items:center;';
+      div.innerHTML =
+        '<input class="form-control item-name" placeholder="Service / item" value="'+(data.name||'')+'" style="font-size:.85rem;" />'
+        +'<input class="form-control item-qty" type="number" min="1" placeholder="Qty" value="'+(data.qty||1)+'" style="font-size:.85rem;" />'
+        +'<input class="form-control item-price" type="number" min="0" step="0.01" placeholder="Price ($)" value="'+(data.price||'')+'" style="font-size:.85rem;" />'
+        +'<button type="button" class="btn btn-danger btn-sm btn-icon remove-item">✕</button>';
+      div.querySelector('.remove-item').addEventListener('click', function(){ div.remove(); recalcTotal(); });
+      div.querySelector('.item-qty').addEventListener('input', recalcTotal);
+      div.querySelector('.item-price').addEventListener('input', recalcTotal);
+      container.appendChild(div);
+      recalcTotal();
+    }
+
+    function collectItems() {
+      return Array.from(document.querySelectorAll('.item-row')).map(function(row){
+        return {
+          name:  row.querySelector('.item-name').value.trim(),
+          qty:   parseFloat(row.querySelector('.item-qty').value)||1,
+          price: parseFloat(row.querySelector('.item-price').value)||0
+        };
+      }).filter(function(i){ return i.name; });
+    }
+
+    function recalcTotal() {
+      var items     = collectItems();
+      var subtotal  = items.reduce(function(s,i){ return s + i.qty * i.price; }, 0);
+      var discount  = parseFloat(document.getElementById('b-discount').value)||0;
+      var taxPct    = parseFloat(document.getElementById('b-tax').value)||0;
+      var afterDisc = Math.max(0, subtotal - discount);
+      var total     = afterDisc + (afterDisc * taxPct / 100);
+      document.getElementById('subtotal-display').textContent = Utils.currency(subtotal);
+      document.getElementById('total-display').textContent    = Utils.currency(total);
+      recalcStatus();
+    }
+
+    function recalcStatus() {
+      var totalText = document.getElementById('total-display').textContent.replace(/[^0-9.]/g,'');
+      var total = parseFloat(totalText)||0;
+      var paid  = parseFloat(document.getElementById('b-paid').value)||0;
+      document.getElementById('b-status').value = paid<=0 ? 'unpaid' : paid>=total ? 'paid' : 'partial';
+    }
+
+    /* ════════════════════════════════════
+       SAVE BILL
+    ════════════════════════════════════ */
+    async function saveBill() {
+      var patientId = document.getElementById('b-patient').value;
+      var items     = collectItems();
+      if (!patientId) { Utils.toast('Please select a patient.','error'); return; }
+      if (!items.length) { Utils.toast('Add at least one service item.','error'); return; }
+
+      var btn = document.getElementById('bm-save');
+      btn.disabled  = true;
+      btn.innerHTML = '<span class="spinner"></span> Saving…';
+
+      var pOpt      = document.querySelector('#b-patient option[value="'+patientId+'"]');
+      var subtotal  = items.reduce(function(s,i){ return s + i.qty * i.price; }, 0);
+      var discount  = parseFloat(document.getElementById('b-discount').value)||0;
+      var taxPct    = parseFloat(document.getElementById('b-tax').value)||0;
+      var afterDisc = Math.max(0, subtotal - discount);
+      var total     = afterDisc + (afterDisc * taxPct / 100);
+      var editId    = document.getElementById('edit-id').value;
+
+      var payload = {
+        patientId:         patientId,
+        patientName:       pOpt ? pOpt.dataset.name : '',
+        billDate:          document.getElementById('b-date').value,
+        items:             items,
+        subtotal:          subtotal,
+        discount:          discount,
+        taxPct:            taxPct,
+        totalAmount:       total,
+        amountPaid:        parseFloat(document.getElementById('b-paid').value)||0,
+        paymentMethod:     document.getElementById('b-method').value,
+        status:            document.getElementById('b-status').value,
+        insuranceProvider: document.getElementById('b-insurance').value.trim(),
+        notes:             document.getElementById('b-notes').value.trim(),
+        updatedAt:         firebase.firestore.FieldValue.serverTimestamp()
+      };
+
+      try {
+        if (editId) {
+          await db.collection('bills').doc(editId).update(payload);
+          Utils.toast('Bill updated successfully.','success');
+        } else {
+          payload.billId    = 'BILL-' + Date.now().toString(36).toUpperCase();
+          payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+          await db.collection('bills').add(payload);
+          Utils.toast('Bill created successfully.','success');
+        }
+        closeModal();
+      } catch(err) {
+        Utils.toast('Error: ' + err.message, 'error');
+        btn.disabled    = false;
+        btn.textContent = editId ? 'Update Bill' : 'Save Bill';
+      }
+    }
+
+    async function markPaid(id) {
+      var bill = allBills.find(function(b){ return b.id===id; });
+      if (!bill) return;
+      try {
+        await db.collection('bills').doc(id).update({
+          status:     'paid',
+          amountPaid: bill.totalAmount,
+          updatedAt:  firebase.firestore.FieldValue.serverTimestamp()
+        });
+        Utils.toast('Bill marked as paid.','success');
+      } catch(err) { Utils.toast('Error: '+err.message,'error'); }
+    }
+
+    function editBill(id) {
+      var b = allBills.find(function(x){ return x.id===id; });
+      if (b) openModal(b);
+    }
+
+    async function deleteBill(id) {
+      if (!confirm('Delete this bill? This cannot be undone.')) return;
+      try {
+        await db.collection('bills').doc(id).delete();
+        Utils.toast('Bill deleted.','info');
+      } catch(err) { Utils.toast('Error: '+err.message,'error'); }
+    }
+
+    init();
+  </script>
+</body>
+</html>
