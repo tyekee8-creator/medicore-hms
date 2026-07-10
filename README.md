@@ -65,7 +65,6 @@ All powered by a **real Firebase cloud backend** with proper authentication, rol
 ### 🌟 What makes this special:
 - **Real backend** — Firebase Auth + Cloud Firestore
 - **Real-time data** — Live updates without page refresh
-- **Multi-language** — English, French, Swahili, Kinyarwanda
 - **Dark/Light mode** — Full theme system
 - **Mobile responsive** — Works on any device
 - **PDF invoices** — Professional downloadable receipts
